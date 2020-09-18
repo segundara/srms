@@ -39,7 +39,7 @@ studentRouter.get("/", async (req, res) => {
 
     const response = await db.query(query, params)
 
-    res.send({ numOfStudents: response.rows.length, data: response.rows })
+    res.send({ count: response.rows.length, data: response.rows })
 })
 
 studentRouter.get("/:id", async (req, res) => {
@@ -53,10 +53,10 @@ studentRouter.get("/:id", async (req, res) => {
 })
 
 studentRouter.post("/", async (req, res) => {
-    const response = await db.query(`INSERT INTO "students" (firstname, lastname, email, dateofbirth, nationality) 
-                                     Values ($1, $2, $3, $4, $5)
+    const response = await db.query(`INSERT INTO "students" (firstname, lastname, email, dateofbirth, nationality, departmentid) 
+                                     Values ($1, $2, $3, $4, $5, $6)
                                      RETURNING *`,
-        [req.body.firstname, req.body.lastname, req.body.email, req.body.dateofbirth, req.body.nationality])
+        [req.body.firstname, req.body.lastname, req.body.email, req.body.dateofbirth, req.body.nationality, req.body.departmentid])
 
 
 
@@ -100,7 +100,7 @@ studentRouter.delete("/:id", async (req, res) => {
     if (response.rowCount === 0)
         return res.status(404).send("Not Found")
 
-    res.send("OK")
+    res.send("Record deleted!")
 })
 
 module.exports = studentRouter
