@@ -1,5 +1,12 @@
 const express = require("express")
 const db = require("../../db")
+const multer = require("multer")
+
+const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
+var MulterAzureStorage = require('multer-azure-storage')
+
+const credentials = new StorageSharedKeyCredential("srmscdn", process.env.STORAGE_KEY)
+const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
 
 const lecturerRouter = express.Router();
 
@@ -62,6 +69,40 @@ lecturerRouter.post("/", async (req, res) => {
 
     console.log(response)
     res.send(response.rows[0])
+})
+
+// EXTRA) Using multer middleware to upload image
+const getFileName = (file) => file.originalname
+
+const multerOptions = multer({
+    storage: new MulterAzureStorage({
+        azureStorageConnectionString: process.env.STORAGE_CS,
+        containerName: 'images',
+        containerSecurity: 'container',
+        fileName: getFileName
+    })
+})
+
+lecturerRouter.post("/upload/:id", multerOptions.single("imageFile"), async (req, res) => {
+    try {
+        let params = []
+        let query = `UPDATE "lecturers" SET image = '${req.file.url}'`
+
+        params.push(req.params.id)
+        query += " WHERE _id = $" + (params.length) + " RETURNING *"
+        console.log(query)
+
+        const result = await db.query(query, params)
+
+        if (result.rowCount === 0)
+            return res.status(404).send("Not Found")
+
+        res.send(result.rows[0])
+    }
+    catch (ex) {
+        console.log(ex)
+        res.status(500).send(ex)
+    }
 })
 
 lecturerRouter.put("/:id", async (req, res) => {
