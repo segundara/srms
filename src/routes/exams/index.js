@@ -16,7 +16,7 @@ examRouter.get("/:studentid", async (req, res) => {
                                      WHERE studentid = $1
                                      GROUP BY courses._id, courses.name, courses.description, courses.semester, exams.examdate, exams.grade
                                      `, [req.params.studentid])
-
+    console.log(response.rows)
     res.send({ count: response.rows.length, data: response.rows })
 })
 
