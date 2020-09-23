@@ -1,5 +1,6 @@
 const express = require("express")
 const db = require("../../db")
+const PdfPrinter = require('pdfmake')
 
 const examRouter = express.Router()
 
@@ -18,6 +19,106 @@ examRouter.get("/:studentid", async (req, res) => {
                                      `, [req.params.studentid])
     console.log(response.rows)
     res.send({ count: response.rows.length, data: response.rows })
+})
+
+examRouter.get('/:studentid/pdf', async (req, res) => {
+    try {
+        const studentInfo = await db.query(`SELECT students._id, students.firstname, students.lastname, students.email
+                                         FROM exams JOIN "students" ON exams.studentid = "students"._id
+                                         WHERE studentid = $1
+                                         GROUP BY students._id, students.firstname, students.lastname, students.email
+                                         `, [req.params.studentid])
+
+        const record = await db.query(`SELECT courses._id, courses.name, courses.description, courses.semester, exams.examdate, exams.grade
+                                         FROM exams JOIN "courses" ON exams.courseid = "courses"._id
+                                         WHERE studentid = $1
+                                         GROUP BY courses._id, courses.name, courses.description, courses.semester, exams.examdate, exams.grade
+                                         `, [req.params.studentid])
+
+        if (record.rowCount > 0) {
+            var fonts = {
+                Roboto: {
+                    normal: 'node_modules/roboto-font/fonts/Roboto/roboto-regular-webfont.ttf',
+                    bold: 'node_modules/roboto-font/fonts/Roboto/roboto-bold-webfont.ttf',
+                    italics: 'node_modules/roboto-font/fonts/Roboto/roboto-italic-webfont.ttf',
+                    bolditalics: 'node_modules/roboto-font/fonts/Roboto/roboto-bolditalic-webfont.ttf'
+                }
+            };
+            var printer = new PdfPrinter(fonts);
+
+            console.log(record.rows)
+
+            function generateRows() {
+                var tempArr = [];
+                for (var i = 0; i < record.rows.length; i++) {
+
+                    tempArr.push(
+                        {
+                            'Course Name': record.rows[i].name,
+                            Semester: record.rows[i].semester,
+                            'Date of Exam': record.rows[i].examdate.toString().slice(0, 16),
+                            Grade: record.rows[i].grade
+                        }
+                    );
+                }
+                return tempArr;
+            }
+
+            function buildTableBody(data, columns) {
+                var body = [];
+
+                body.push(columns);
+
+                data.forEach(function (row) {
+                    var dataRow = [];
+
+                    columns.forEach(function (column) {
+                        dataRow.push(row[column].toString());
+                    })
+
+                    body.push(dataRow);
+                });
+
+                return body;
+            }
+
+            function table(data, columns) {
+                return {
+                    table: {
+                        headerRows: 1,
+                        body: buildTableBody(data, columns)
+                    },
+                    layout: {
+                        fillColor: function (rowIndex, node, columnIndex) {
+                            return (rowIndex === 0) ? '#CCCCCC' : null;
+                        }
+                    }
+                };
+            }
+
+            var docDefinition = {
+                pageMargins: [150, 50, 150, 50],
+                content: [
+                    {
+                        text: `${studentInfo.rows[0].firstname.toUpperCase()} ${studentInfo.rows[0].lastname.toUpperCase()}`,
+                        bold: true, fontsize: 25, alignment: 'center', color: 'brown'
+                    },
+                    {
+                        text: `Transcript of Records`, normal: true, alignment: 'center', color: 'brown'
+                    }, `\n`,
+                    table(generateRows(), ['Course Name', 'Semester', 'Date of Exam', 'Grade'])
+                ]
+            }
+            var pdfDoc = printer.createPdfKitDocument(docDefinition);
+            res.setHeader("Content-Disposition", `attachment; filename=${studentInfo.rows[0].firstname}.pdf`)
+            res.contentType("application/pdf")
+            pdfDoc.pipe(res)
+            pdfDoc.end()
+        }
+        else res.status(404).send('no record found!')
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 examRouter.put("/:studentid/:id", async (req, res) => {
