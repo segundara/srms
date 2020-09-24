@@ -4,6 +4,7 @@ const sgMail = require("@sendgrid/mail")
 
 const registerRouter = express.Router()
 
+// endpoint for course registration, needed by student
 registerRouter.post("/", async (req, res) => {
     const checkRegister = await db.query(`SELECT _id FROM course_register 
                                       WHERE courseid = $1 AND studentid = $2`,
@@ -40,6 +41,7 @@ registerRouter.post("/", async (req, res) => {
     res.send(response.rows[0])
 })
 
+// endpoint for viewing registered course list, needed by student
 registerRouter.get("/course_list/:studentid", async (req, res) => {
     const response = await db.query(`SELECT courses._id, courses.name, courses.description, courses.semester, course_register.reg_date
                                      FROM course_register JOIN "courses" ON course_register.courseid = "courses"._id
@@ -50,6 +52,7 @@ registerRouter.get("/course_list/:studentid", async (req, res) => {
     res.send({ count: response.rows.length, data: response.rows })
 })
 
+// endpoint for viewing students list in a particular course, needed by lecturer
 registerRouter.get("/student_list/:courseid", async (req, res) => {
     const response = await db.query(`SELECT students._id, students.firstname, students.lastname, students.email, course_register.reg_date
                                      FROM course_register JOIN "students" ON course_register.studentid = "students"._id
@@ -60,6 +63,7 @@ registerRouter.get("/student_list/:courseid", async (req, res) => {
     res.send({ count: response.rows.length, data: response.rows })
 })
 
+// endpoint for removing a course from registered list, needed by student
 registerRouter.delete("/:studentid/:courseid", async (req, res) => {
 
     const response = await db.query(`DELETE FROM course_register where _id IN
