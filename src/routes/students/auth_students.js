@@ -1,11 +1,11 @@
 const jwt = require("jsonwebtoken")
 const db = require("../../db")
 
-const authenticate = async (user) => {
+const authenticateStudent = async (user) => {
   try {
     // generate tokens
-    const newAccessToken = await generateJWT({ _id: user._id })
-    const newRefreshToken = await generateRefreshJWT({ _id: user._id })
+    const newAccessToken = await generateStudentJWT({ _id: user._id })
+    const newRefreshToken = await generateStudentRefreshJWT({ _id: user._id })
 
     let params = []
     let query = `UPDATE "students" SET token = '${newRefreshToken}'`
@@ -23,7 +23,7 @@ const authenticate = async (user) => {
   }
 }
 
-const generateJWT = (payload) =>
+const generateStudentJWT = (payload) =>
   new Promise((res, rej) =>
     jwt.sign(
       payload,
@@ -36,7 +36,7 @@ const generateJWT = (payload) =>
     )
   )
 
-const verifyJWT = (token) =>
+const verifyStudentJWT = (token) =>
   new Promise((res, rej) =>
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
       if (err) rej(err)
@@ -45,7 +45,7 @@ const verifyJWT = (token) =>
     })
   )
 
-const generateRefreshJWT = (payload) =>
+const generateStudentRefreshJWT = (payload) =>
   new Promise((res, rej) =>
     jwt.sign(
       payload,
@@ -58,8 +58,8 @@ const generateRefreshJWT = (payload) =>
     )
   )
 
-const refreshToken = async (oldRefreshToken) => {
-  const decoded = await verifyRefreshToken(oldRefreshToken)
+const refreshTokenStudent = async (oldRefreshToken) => {
+  const decoded = await verifyRefreshTokenStudent(oldRefreshToken)
 
   const user = await db.query('SELECT * FROM "students" WHERE _id= $1',
     [decoded._id])
@@ -90,7 +90,7 @@ const refreshToken = async (oldRefreshToken) => {
   return { token: newAccessToken, refreshToken: newRefreshToken }
 }
 
-const verifyRefreshToken = (token) =>
+const verifyRefreshTokenStudent = (token) =>
   new Promise((res, rej) =>
     jwt.verify(token, process.env.REFRESH_SECRET, (err, decoded) => {
       if (err) rej(err)
@@ -98,4 +98,4 @@ const verifyRefreshToken = (token) =>
     })
   )
 
-module.exports = { authenticate, verifyJWT, refreshToken }
+module.exports = { authenticateStudent, verifyStudentJWT, refreshTokenStudent }
