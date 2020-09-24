@@ -1,6 +1,10 @@
 const express = require("express")
 const db = require("../../db")
 const multer = require("multer")
+const bcrypt = require("bcrypt")
+const jwt = require("jsonwebtoken")
+const { authenticate, refreshToken } = require("./authTools")
+const authorize = require("../middlewares/authorize")
 
 const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
 var MulterAzureStorage = require('multer-azure-storage')
@@ -10,7 +14,7 @@ const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/
 
 const studentRouter = express.Router();
 
-studentRouter.get("/", async (req, res) => {
+studentRouter.get("/", authorize, async (req, res) => {
 
     const sort = req.query.sort
     const order = req.query.order
@@ -48,26 +52,38 @@ studentRouter.get("/", async (req, res) => {
     res.send({ count: response.rows.length, data: response.rows })
 })
 
-studentRouter.get("/:id", async (req, res) => {
-    const response = await db.query('SELECT _id, firstname, lastname, email, dateofbirth, nationality FROM "students" WHERE _id= $1',
-        [req.params.id])
-
-    if (response.rowCount === 0)
-        return res.status(404).send("Not found")
-
-    res.send(response.rows[0])
+studentRouter.get("/me", authorize, async (req, res, next) => {
+    try {
+        res.send(req.user)
+    } catch (error) {
+        next("While reading users list a problem occurred!")
+    }
 })
 
-studentRouter.post("/", async (req, res) => {
-    const response = await db.query(`INSERT INTO "students" (firstname, lastname, email, dateofbirth, nationality, departmentid) 
-                                     Values ($1, $2, $3, $4, $5, $6)
-                                     RETURNING *`,
-        [req.body.firstname, req.body.lastname, req.body.email, req.body.dateofbirth, req.body.nationality, req.body.departmentid])
+// studentRouter.get("/:id", async (req, res) => {
+//     const response = await db.query('SELECT _id, firstname, lastname, email, dateofbirth, nationality FROM "students" WHERE _id= $1',
+//         [req.params.id])
 
+//     if (response.rowCount === 0)
+//         return res.status(404).send("Not found")
 
+//     res.send(response.rows[0])
+// })
 
-    console.log(response)
-    res.send(response.rows[0])
+studentRouter.post("/register", async (req, res) => {
+    try {
+        const hashedPassword = await bcrypt.hash(req.body.password, 10)
+
+        const response = await db.query(`INSERT INTO "students" (firstname, lastname, email, dateofbirth, nationality, departmentid, password) 
+    Values ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING *`,
+            [req.body.firstname, req.body.lastname, req.body.email, req.body.dateofbirth, req.body.nationality, req.body.departmentid, hashedPassword])
+
+        console.log(response)
+        res.status(201).send(response.rows[0])
+    } catch {
+        res.status(500).send()
+    }
 })
 
 // EXTRA) Using multer middleware to upload image
@@ -104,7 +120,7 @@ studentRouter.post("/upload/:id", multerOptions.single("imageFile"), async (req,
     }
 })
 
-studentRouter.put("/:id", async (req, res) => {
+studentRouter.put("/me", authorize, async (req, res) => {
     try {
         let params = []
         let query = 'UPDATE "students" SET '
@@ -116,7 +132,7 @@ studentRouter.put("/:id", async (req, res) => {
             params.push(req.body[bodyParamName]) //save the current body parameter into the params array
         }
 
-        params.push(req.params.id) //push the id into the array
+        params.push(req.user._id) //push the id into the array
         query += " WHERE _id = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
         console.log(query)
 
@@ -141,6 +157,89 @@ studentRouter.delete("/:id", async (req, res) => {
         return res.status(404).send("Not Found")
 
     res.send("Record deleted!")
+})
+
+studentRouter.post("/login", async (req, res) => {
+    try {
+        const { email, password } = req.body
+
+        const getUser = await db.query('SELECT * FROM "students" WHERE email= $1',
+            [email])
+
+        const isMatch = await bcrypt.compare(password, getUser.rows[0].password)
+        if (!isMatch) {
+            const err = new Error("Unable to login")
+            err.httpStatusCode = 401
+            throw err
+        }
+
+        const user = getUser.rows[0]
+
+        const tokens = await authenticate(user)
+        res.send(tokens)
+
+        // const accessToken = await generateAccessToken(user)
+        // const refreshToken = jwt.sign(user, process.env.REFRESH_SECRET)
+
+        // let params = []
+        // let query = `UPDATE "students" SET token = '${refreshToken}'`
+
+        // params.push(email)
+        // query += " WHERE email = $" + (params.length) + " RETURNING *"
+        // console.log(query)
+
+        // const result = await db.query(query, params)
+
+        // res.json({ accessToken: accessToken, refreshToken: refreshToken })
+
+    } catch (error) {
+        console.log(error)
+    }
+})
+
+// function generateAccessToken(user) {
+//     return jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '15s' })
+// }
+
+studentRouter.post("/logout", authorize, async (req, res, next) => {
+    try {
+        let params = []
+        let query = `UPDATE "students" SET token = ''`
+
+        params.push(req.user._id)
+        query += " WHERE _id = $" + (params.length) + " RETURNING *"
+        console.log(query)
+
+        const result = await db.query(query, params)
+
+        if (result.rowCount === 0)
+            return res.status(404).send("Not Found")
+
+        // res.send(result.rows[0])
+        res.send("logout successful!")
+
+    } catch (err) {
+        next(err)
+    }
+})
+
+studentRouter.post("/refreshToken", async (req, res, next) => {
+    const oldRefreshToken = req.body.refreshToken
+    if (!oldRefreshToken) {
+        const err = new Error("Forbidden")
+        err.httpStatusCode = 403
+        next(err)
+    } else {
+        try {
+            const newTokens = await refreshToken(oldRefreshToken)
+            res.send(newTokens)
+        } catch (error) {
+            console.log(error)
+            const err = new Error(error)
+            err.httpStatusCode = 403
+            next(err)
+        }
+    }
 })
 
 module.exports = studentRouter
