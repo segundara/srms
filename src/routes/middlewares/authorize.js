@@ -5,7 +5,7 @@ const db = require("../../db")
 
 const authorizeStudent = async (req, res, next) => {
   try {
-    const token = req.header("Authorization").replace("Bearer ", "")
+    const token = req.cookies.accessToken
     const decoded = await verifyStudentJWT(token)
     const user = await db.query('SELECT * FROM "students" WHERE _id= $1',
       [decoded._id])
@@ -17,9 +17,9 @@ const authorizeStudent = async (req, res, next) => {
     req.token = token
     req.user = user.rows[0]
 
-    if (req.user.token === '') {
-      const err = new Error("Sorry you need to login again!")
-      err.httpStatusCode = 401
+    if (req.user.token === null) {
+      const err = new Error("Sorry you already logged out!")
+      err.httpStatusCode = 403
       next(err)
     }
     next()
@@ -32,7 +32,7 @@ const authorizeStudent = async (req, res, next) => {
 
 const authorizeLecturer = async (req, res, next) => {
   try {
-    const token = req.header("Authorization").replace("Bearer ", "")
+    const token = req.cookies.accessToken
     const decoded = await verifyLecturerJWT(token)
     const user = await db.query('SELECT * FROM "lecturers" WHERE _id= $1',
       [decoded._id])
@@ -44,8 +44,8 @@ const authorizeLecturer = async (req, res, next) => {
     req.token = token
     req.user = user.rows[0]
 
-    if (req.user.token === '') {
-      const err = new Error("Sorry you need to login again!")
+    if (req.user.token === null) {
+      const err = new Error("Sorry you already logged out!")
       err.httpStatusCode = 401
       next(err)
     }
