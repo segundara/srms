@@ -16,7 +16,7 @@ const authenticateLecturer = async (user) => {
 
     const result = await db.query(query, params)
 
-    return { token: newAccessToken, refreshToken: newRefreshToken }
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken }
   } catch (error) {
     console.log(error)
     throw new Error(error)
@@ -87,7 +87,7 @@ const refreshTokenLecturer = async (oldRefreshToken) => {
 
   const result = await db.query(query, params)
 
-  return { token: newAccessToken, refreshToken: newRefreshToken }
+  return { accessToken: newAccessToken, refreshToken: newRefreshToken }
 }
 
 const verifyRefreshTokenLecturer = (token) =>
