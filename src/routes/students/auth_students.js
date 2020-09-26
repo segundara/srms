@@ -16,7 +16,7 @@ const authenticateStudent = async (user) => {
 
     const result = await db.query(query, params)
 
-    return { token: newAccessToken, refreshToken: newRefreshToken }
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken }
   } catch (error) {
     console.log(error)
     throw new Error(error)
@@ -28,7 +28,7 @@ const generateStudentJWT = (payload) =>
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
-      { expiresIn: '5m' },
+      { expiresIn: '30s' },
       (err, token) => {
         if (err) rej(err)
         res(token)
@@ -40,8 +40,8 @@ const verifyStudentJWT = (token) =>
   new Promise((res, rej) =>
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
       if (err) rej(err)
-      console.log("verifyJWT output => " + decoded)
       res(decoded)
+      console.log("verifyStudentJWT token => " + token)
     })
   )
 
@@ -75,19 +75,18 @@ const refreshTokenStudent = async (oldRefreshToken) => {
   }
 
   // generate tokens
-  const newAccessToken = await generateJWT({ _id: user.rows[0]._id })
-  const newRefreshToken = await generateRefreshJWT({ _id: user.rows[0]._id })
+  const newAccessToken = await generateStudentJWT({ _id: user.rows[0]._id })
+  const newRefreshToken = await generateStudentRefreshJWT({ _id: user.rows[0]._id })
 
   let params = []
   let query = `UPDATE "students" SET token = '${newRefreshToken}'`
 
   params.push(decoded._id)
   query += " WHERE _id = $" + (params.length) + " RETURNING *"
-  console.log(query)
 
   const result = await db.query(query, params)
 
-  return { token: newAccessToken, refreshToken: newRefreshToken }
+  return { accessToken: newAccessToken, refreshToken: newRefreshToken }
 }
 
 const verifyRefreshTokenStudent = (token) =>
