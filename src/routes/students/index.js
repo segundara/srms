@@ -8,48 +8,53 @@ const { authorizeStudent } = require("../middlewares/authorize")
 
 const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
 var MulterAzureStorage = require('multer-azure-storage')
+const { cookie } = require("express-validator")
 
 const credentials = new StorageSharedKeyCredential("srmscdn", process.env.STORAGE_KEY)
 const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
 
 const studentRouter = express.Router();
 
-studentRouter.get("/", authorizeStudent, async (req, res) => {
+studentRouter.get("/", authorizeStudent, async (req, res, next) => {
+    try {
+        const sort = req.query.sort
+        const order = req.query.order
+        const offset = req.query.offset || 0
+        const limit = req.query.limit
 
-    const sort = req.query.sort
-    const order = req.query.order
-    const offset = req.query.offset || 0
-    const limit = req.query.limit
+        delete req.query.sort
+        delete req.query.order
+        delete req.query.offset
+        delete req.query.limit
 
-    delete req.query.sort
-    delete req.query.order
-    delete req.query.offset
-    delete req.query.limit
+        let query = 'SELECT * FROM "students" ' //create query
 
-    let query = 'SELECT * FROM "students" ' //create query
+        const params = []
+        for (queryParam in req.query) { //for each value in query string, I'll filter
+            params.push(req.query[queryParam])
 
-    const params = []
-    for (queryParam in req.query) { //for each value in query string, I'll filter
-        params.push(req.query[queryParam])
+            if (params.length === 1)
+                query += `WHERE ${queryParam} = $${params.length} `
+            else
+                query += ` AND ${queryParam} = $${params.length} `
+        }
 
-        if (params.length === 1)
-            query += `WHERE ${queryParam} = $${params.length} `
-        else
-            query += ` AND ${queryParam} = $${params.length} `
+        if (sort !== undefined)
+            query += `ORDER BY ${sort} ${order}`  //adding the sorting 
+
+        params.push(limit)
+        query += ` LIMIT $${params.length} `
+        params.push(offset)
+        query += ` OFFSET $${params.length}`
+        console.log(query)
+
+        const response = await db.query(query, params)
+
+        res.send({ count: response.rows.length, data: response.rows })
+
+    } catch (error) {
+        next(error)
     }
-
-    if (sort !== undefined)
-        query += `ORDER BY ${sort} ${order}`  //adding the sorting 
-
-    params.push(limit)
-    query += ` LIMIT $${params.length} `
-    params.push(offset)
-    query += ` OFFSET $${params.length}`
-    console.log(query)
-
-    const response = await db.query(query, params)
-
-    res.send({ count: response.rows.length, data: response.rows })
 })
 
 studentRouter.get("/me", authorizeStudent, async (req, res, next) => {
@@ -70,7 +75,7 @@ studentRouter.get("/me", authorizeStudent, async (req, res, next) => {
 //     res.send(response.rows[0])
 // })
 
-studentRouter.post("/register", async (req, res) => {
+studentRouter.post("/register", async (req, res, next) => {
     try {
         const hashedPassword = await bcrypt.hash(req.body.password, 10)
 
@@ -81,8 +86,8 @@ studentRouter.post("/register", async (req, res) => {
 
         console.log(response)
         res.status(201).send(response.rows[0])
-    } catch {
-        res.status(500).send()
+    } catch (error) {
+        next(error)
     }
 })
 
@@ -98,7 +103,7 @@ const multerOptions = multer({
     })
 })
 
-studentRouter.post("/upload/me", authorizeStudent, multerOptions.single("imageFile"), async (req, res) => {
+studentRouter.post("/upload/me", authorizeStudent, multerOptions.single("imageFile"), async (req, res, next) => {
     try {
         let params = []
         let query = `UPDATE "students" SET image = '${req.file.url}'`
@@ -114,13 +119,12 @@ studentRouter.post("/upload/me", authorizeStudent, multerOptions.single("imageFi
 
         res.send(result.rows[0])
     }
-    catch (ex) {
-        console.log(ex)
-        res.status(500).send(ex)
+    catch (error) {
+        next(error)
     }
 })
 
-studentRouter.put("/me", authorizeStudent, async (req, res) => {
+studentRouter.put("/me", authorizeStudent, async (req, res, next) => {
     try {
         let params = []
         let query = 'UPDATE "students" SET '
@@ -144,22 +148,26 @@ studentRouter.put("/me", authorizeStudent, async (req, res) => {
 
         res.send(result.rows[0]) //else, return the updated version
     }
-    catch (ex) {
-        console.log(ex)
-        res.status(500).send(ex)
+    catch (error) {
+        next(error)
     }
 })
 
-studentRouter.delete("/me", authorizeStudent, async (req, res) => {
-    const response = await db.query(`DELETE FROM "students" WHERE _id = $1`, [req.user._id])
+studentRouter.delete("/me", authorizeStudent, async (req, res, next) => {
+    try {
+        const response = await db.query(`DELETE FROM "students" WHERE _id = $1`, [req.user._id])
 
-    if (response.rowCount === 0)
-        return res.status(404).send("Not Found")
+        if (response.rowCount === 0)
+            return res.status(404).send("Not Found")
 
-    res.send("Record deleted!")
+        res.send("Record deleted!")
+
+    } catch (error) {
+        next(error)
+    }
 })
 
-studentRouter.post("/login", async (req, res) => {
+studentRouter.post("/login", async (req, res, next) => {
     try {
         const { email, password } = req.body
 
@@ -176,7 +184,16 @@ studentRouter.post("/login", async (req, res) => {
         const user = getUser.rows[0]
 
         const tokens = await authenticateStudent(user)
-        res.send(tokens)
+
+        res.cookie("accessToken", tokens.accessToken, {
+            httpOnly: true,
+        })
+        res.cookie("refreshToken", tokens.refreshToken, {
+            httpOnly: true,
+            path: "/students/refreshToken",
+        })
+        // res.send(tokens)
+        res.send("cookies sent!")
 
         // const accessToken = await generateAccessToken(user)
         // const refreshToken = jwt.sign(user, process.env.REFRESH_SECRET)
@@ -193,7 +210,7 @@ studentRouter.post("/login", async (req, res) => {
         // res.json({ accessToken: accessToken, refreshToken: refreshToken })
 
     } catch (error) {
-        console.log(error)
+        next(error)
     }
 })
 
@@ -204,7 +221,7 @@ studentRouter.post("/login", async (req, res) => {
 studentRouter.post("/logout", authorizeStudent, async (req, res, next) => {
     try {
         let params = []
-        let query = `UPDATE "students" SET token = ''`
+        let query = `UPDATE "students" SET token = null`
 
         params.push(req.user._id)
         query += " WHERE _id = $" + (params.length) + " RETURNING *"
@@ -218,13 +235,14 @@ studentRouter.post("/logout", authorizeStudent, async (req, res, next) => {
         // res.send(result.rows[0])
         res.send("logout successful!")
 
-    } catch (err) {
-        next(err)
+    } catch (error) {
+        next(error)
     }
 })
 
 studentRouter.post("/refreshToken", async (req, res, next) => {
-    const oldRefreshToken = req.body.refreshToken
+    const oldRefreshToken = req.cookies.refreshToken
+    console.log(oldRefreshToken)
     if (!oldRefreshToken) {
         const err = new Error("Forbidden")
         err.httpStatusCode = 403
@@ -232,7 +250,15 @@ studentRouter.post("/refreshToken", async (req, res, next) => {
     } else {
         try {
             const newTokens = await refreshTokenStudent(oldRefreshToken)
-            res.send(newTokens)
+            res.cookie("accessToken", newTokens.accessToken, {
+                httpOnly: true,
+            })
+            res.cookie("refreshToken", newTokens.refreshToken, {
+                httpOnly: true,
+                path: "/students/refreshToken",
+            })
+            // res.send(newTokens)
+            res.send("newTokens sent!")
         } catch (error) {
             console.log(error)
             const err = new Error(error)
