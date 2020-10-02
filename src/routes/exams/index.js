@@ -1,17 +1,20 @@
 const express = require("express")
 const db = require("../../db")
 const PdfPrinter = require('pdfmake')
+const { authorize, forAllButStudent, onlyForAdmin } = require("../middlewares/authorize")
 
 const examRouter = express.Router()
 
-examRouter.post("/", async (req, res) => {
+// endpoint to register for exam
+examRouter.post("/", authorize, async (req, res) => {
     const response = await db.query("INSERT INTO exams (studentid, courseid, examdate) VALUES ($1, $2, $3) RETURNING _id",
         [req.body.studentid, req.body.courseid, req.body.examdate])
 
     res.send(response.rows[0])
 })
 
-examRouter.get("/:studentid", async (req, res) => {
+// endpoint to view exam grades and other exam info
+examRouter.get("/:studentid", authorize, async (req, res) => {
     const response = await db.query(`SELECT courses._id, courses.name, courses.description, courses.semester, exams.examdate, exams.grade
                                      FROM exams JOIN "courses" ON exams.courseid = "courses"._id
                                      WHERE studentid = $1
@@ -21,7 +24,8 @@ examRouter.get("/:studentid", async (req, res) => {
     res.send({ count: response.rows.length, data: response.rows })
 })
 
-examRouter.get('/:studentid/pdf', async (req, res) => {
+// endpoint to download transcript of records
+examRouter.get('/:studentid/pdf', authorize, async (req, res) => {
     try {
         const studentInfo = await db.query(`SELECT students._id, students.firstname, students.lastname, students.email
                                          FROM exams JOIN "students" ON exams.studentid = "students"._id
@@ -121,7 +125,8 @@ examRouter.get('/:studentid/pdf', async (req, res) => {
     }
 })
 
-examRouter.put("/:studentid/:id", async (req, res) => {
+// endpoint to upload exam grades
+examRouter.put("/:studentid/:id", authorize, forAllButStudent, async (req, res) => {
     try {
         let params = []
         let query = 'UPDATE "exams" SET '
@@ -152,7 +157,7 @@ examRouter.put("/:studentid/:id", async (req, res) => {
     }
 })
 
-examRouter.delete("/:studentid/:id", async (req, res) => {
+examRouter.delete("/:studentid/:id", authorize, async (req, res) => {
 
     const response = await db.query(`DELETE FROM exams where _id IN
                                      (SELECT _id FROM exams 
