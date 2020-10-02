@@ -3,8 +3,7 @@ const db = require("../../db")
 const multer = require("multer")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
-const { authenticateStudent, refreshTokenStudent } = require("./auth_students")
-const { authorizeStudent } = require("../middlewares/authorize")
+const { authorize, onlyForAdmin } = require("../middlewares/authorize")
 
 const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
 var MulterAzureStorage = require('multer-azure-storage')
@@ -15,7 +14,7 @@ const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/
 
 const studentRouter = express.Router();
 
-studentRouter.get("/", authorizeStudent, async (req, res, next) => {
+studentRouter.get("/", authorize, async (req, res, next) => {
     try {
         const sort = req.query.sort
         const order = req.query.order
@@ -57,35 +56,31 @@ studentRouter.get("/", authorizeStudent, async (req, res, next) => {
     }
 })
 
-studentRouter.get("/me", authorizeStudent, async (req, res, next) => {
+studentRouter.get("/me", authorize, async (req, res, next) => {
     try {
-        res.send(req.user)
+        const getMe = await db.query('SELECT * FROM "students" WHERE email= $1',
+            [req.user.email])
+        res.send(getMe.rows[0])
     } catch (error) {
         next("While reading users list a problem occurred!")
     }
 })
 
-// studentRouter.get("/:id", async (req, res) => {
-//     const response = await db.query('SELECT _id, firstname, lastname, email, dateofbirth, nationality FROM "students" WHERE _id= $1',
-//         [req.params.id])
-
-//     if (response.rowCount === 0)
-//         return res.status(404).send("Not found")
-
-//     res.send(response.rows[0])
-// })
-
-studentRouter.post("/register", async (req, res, next) => {
+studentRouter.post("/register", authorize, onlyForAdmin, async (req, res, next) => {
     try {
         const hashedPassword = await bcrypt.hash(req.body.password, 10)
 
-        const response = await db.query(`INSERT INTO "students" (firstname, lastname, email, dateofbirth, nationality, departmentid, password) 
-    Values ($1, $2, $3, $4, $5, $6, $7)
+        const newStudent = await db.query(`INSERT INTO "students" (firstname, lastname, email, dateofbirth, nationality, departmentid) 
+    Values ($1, $2, $3, $4, $5, $6)
     RETURNING *`,
-            [req.body.firstname, req.body.lastname, req.body.email, req.body.dateofbirth, req.body.nationality, req.body.departmentid, hashedPassword])
+            [req.body.firstname, req.body.lastname, req.body.email, req.body.dateofbirth, req.body.nationality, req.body.departmentid])
 
-        console.log(response)
-        res.status(201).send(response.rows[0])
+        const newUser = await db.query(`INSERT INTO "users" (email, password, title) 
+            Values ($1, $2, $3)
+            RETURNING *`,
+            [req.body.email, hashedPassword, req.body.title])
+
+        res.status(201).send(newStudent.rows[0])
     } catch (error) {
         next(error)
     }
@@ -103,7 +98,7 @@ const multerOptions = multer({
     })
 })
 
-studentRouter.post("/upload/me", authorizeStudent, multerOptions.single("imageFile"), async (req, res, next) => {
+studentRouter.post("/upload/me", authorize, multerOptions.single("imageFile"), async (req, res, next) => {
     try {
         let params = []
         let query = `UPDATE "students" SET image = '${req.file.url}'`
@@ -124,7 +119,7 @@ studentRouter.post("/upload/me", authorizeStudent, multerOptions.single("imageFi
     }
 })
 
-studentRouter.put("/me", authorizeStudent, async (req, res, next) => {
+studentRouter.put("/me", authorize, async (req, res, next) => {
     try {
         let params = []
         let query = 'UPDATE "students" SET '
@@ -153,7 +148,7 @@ studentRouter.put("/me", authorizeStudent, async (req, res, next) => {
     }
 })
 
-studentRouter.delete("/me", authorizeStudent, async (req, res, next) => {
+studentRouter.delete("/me", authorize, async (req, res, next) => {
     try {
         const response = await db.query(`DELETE FROM "students" WHERE _id = $1`, [req.user._id])
 
@@ -167,105 +162,5 @@ studentRouter.delete("/me", authorizeStudent, async (req, res, next) => {
     }
 })
 
-studentRouter.post("/login", async (req, res, next) => {
-    try {
-        const { email, password } = req.body
-
-        const getUser = await db.query('SELECT * FROM "students" WHERE email= $1',
-            [email])
-
-        const isMatch = await bcrypt.compare(password, getUser.rows[0].password)
-        if (!isMatch) {
-            const err = new Error("Unable to login")
-            err.httpStatusCode = 401
-            throw err
-        }
-
-        const user = getUser.rows[0]
-
-        const tokens = await authenticateStudent(user)
-
-        res.cookie("accessToken", tokens.accessToken, {
-            httpOnly: true,
-        })
-        res.cookie("refreshToken", tokens.refreshToken, {
-            httpOnly: true,
-            path: "/students/refreshToken",
-        })
-        // res.send(tokens)
-        res.send("cookies sent!")
-
-        // const accessToken = await generateAccessToken(user)
-        // const refreshToken = jwt.sign(user, process.env.REFRESH_SECRET)
-
-        // let params = []
-        // let query = `UPDATE "students" SET token = '${refreshToken}'`
-
-        // params.push(email)
-        // query += " WHERE email = $" + (params.length) + " RETURNING *"
-        // console.log(query)
-
-        // const result = await db.query(query, params)
-
-        // res.json({ accessToken: accessToken, refreshToken: refreshToken })
-
-    } catch (error) {
-        next(error)
-    }
-})
-
-// function generateAccessToken(user) {
-//     return jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '15s' })
-// }
-
-studentRouter.post("/logout", authorizeStudent, async (req, res, next) => {
-    try {
-        let params = []
-        let query = `UPDATE "students" SET token = null`
-
-        params.push(req.user._id)
-        query += " WHERE _id = $" + (params.length) + " RETURNING *"
-        console.log(query)
-
-        const result = await db.query(query, params)
-
-        if (result.rowCount === 0)
-            return res.status(404).send("Not Found")
-
-        // res.send(result.rows[0])
-        res.send("logout successful!")
-
-    } catch (error) {
-        next(error)
-    }
-})
-
-studentRouter.post("/refreshToken", async (req, res, next) => {
-    const oldRefreshToken = req.cookies.refreshToken
-    console.log(oldRefreshToken)
-    if (!oldRefreshToken) {
-        const err = new Error("Forbidden")
-        err.httpStatusCode = 403
-        next(err)
-    } else {
-        try {
-            const newTokens = await refreshTokenStudent(oldRefreshToken)
-            res.cookie("accessToken", newTokens.accessToken, {
-                httpOnly: true,
-            })
-            res.cookie("refreshToken", newTokens.refreshToken, {
-                httpOnly: true,
-                path: "/students/refreshToken",
-            })
-            // res.send(newTokens)
-            res.send("newTokens sent!")
-        } catch (error) {
-            console.log(error)
-            const err = new Error(error)
-            err.httpStatusCode = 403
-            next(err)
-        }
-    }
-})
 
 module.exports = studentRouter
