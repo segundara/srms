@@ -1,10 +1,11 @@
 const express = require("express")
 const db = require("../../db")
+const { authorize, onlyForAdmin } = require("../middlewares/authorize")
 
 const courseRouter = express.Router();
 
 
-courseRouter.get("/", async (req, res) => {
+courseRouter.get("/", authorize, async (req, res) => {
 
     const sort = req.query.sort
     const order = req.query.order
@@ -42,8 +43,8 @@ courseRouter.get("/", async (req, res) => {
     res.send({ count: response.rows.length, data: response.rows })
 })
 
-courseRouter.get("/:id", async (req, res) => {
-    const response = await db.query('SELECT _id, name, description, semester, lecturerid FROM "courses" WHERE _id= $1',
+courseRouter.get("/:id", authorize, async (req, res) => {
+    const response = await db.query('SELECT * FROM "courses" WHERE _id= $1',
         [req.params.id])
 
     if (response.rowCount === 0)
@@ -52,11 +53,12 @@ courseRouter.get("/:id", async (req, res) => {
     res.send(response.rows[0])
 })
 
-courseRouter.post("/", async (req, res) => {
-    const response = await db.query(`INSERT INTO "courses" (name, description, semester, lecturerid) 
-                                     Values ($1, $2, $3, $4)
+//Admin to add course info
+courseRouter.post("/", authorize, onlyForAdmin, async (req, res) => {
+    const response = await db.query(`INSERT INTO "courses" (name, description, semester, lecturerid, examdate) 
+                                     Values ($1, $2, $3, $4, $5)
                                      RETURNING *`,
-        [req.body.name, req.body.description, req.body.semester, req.body.lecturerid])
+        [req.body.name, req.body.description, req.body.semester, req.body.lecturerid, req.body.examdate])
 
 
 
@@ -64,7 +66,7 @@ courseRouter.post("/", async (req, res) => {
     res.send(response.rows[0])
 })
 
-courseRouter.put("/:id", async (req, res) => {
+courseRouter.put("/:id", authorize, onlyForAdmin, async (req, res) => {
     try {
         let params = []
         let query = 'UPDATE "courses" SET '
@@ -94,7 +96,7 @@ courseRouter.put("/:id", async (req, res) => {
     }
 })
 
-courseRouter.delete("/:id", async (req, res) => {
+courseRouter.delete("/:id", authorize, onlyForAdmin, async (req, res) => {
     const response = await db.query(`DELETE FROM "courses" WHERE _id = $1`, [req.params.id])
 
     if (response.rowCount === 0)
