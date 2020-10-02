@@ -1,10 +1,11 @@
 const express = require("express")
 const db = require("../../db")
+const { authorize, onlyForAdmin } = require("../middlewares/authorize")
 
 const departmentRouter = express.Router();
 
 
-departmentRouter.get("/", async (req, res) => {
+departmentRouter.get("/", authorize, async (req, res) => {
 
     const sort = req.query.sort
     const order = req.query.order
@@ -42,7 +43,7 @@ departmentRouter.get("/", async (req, res) => {
     res.send({ count: response.rows.length, data: response.rows })
 })
 
-departmentRouter.get("/:id", async (req, res) => {
+departmentRouter.get("/:id", authorize, async (req, res) => {
     const response = await db.query('SELECT _id, name FROM "departments" WHERE _id= $1',
         [req.params.id])
 
@@ -52,7 +53,7 @@ departmentRouter.get("/:id", async (req, res) => {
     res.send(response.rows[0])
 })
 
-departmentRouter.post("/", async (req, res) => {
+departmentRouter.post("/", authorize, onlyForAdmin, async (req, res) => {
     const response = await db.query(`INSERT INTO "departments" (name) 
                                      Values ($1)
                                      RETURNING *`,
@@ -64,7 +65,7 @@ departmentRouter.post("/", async (req, res) => {
     res.send(response.rows[0])
 })
 
-departmentRouter.put("/:id", async (req, res) => {
+departmentRouter.put("/:id", authorize, onlyForAdmin, async (req, res) => {
     try {
         let params = []
         let query = 'UPDATE "departments" SET '
@@ -94,7 +95,7 @@ departmentRouter.put("/:id", async (req, res) => {
     }
 })
 
-departmentRouter.delete("/:id", async (req, res) => {
+departmentRouter.delete("/:id", authorize, onlyForAdmin, async (req, res) => {
     const response = await db.query(`DELETE FROM "departments" WHERE _id = $1`, [req.params.id])
 
     if (response.rowCount === 0)
