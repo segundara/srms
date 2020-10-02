@@ -9,6 +9,8 @@ const courseRouter = require("./routes/courses")
 const lecturerRouter = require("./routes/lecturers")
 const registerRouter = require("./routes/course_register")
 const examRouter = require("./routes/exams")
+const adminRouter = require("./routes/admin")
+const userRouter = require("./routes/users")
 const listEndpoints = require("express-list-endpoints")
 const cookieParser = require("cookie-parser")
 
@@ -21,7 +23,7 @@ const {
 
 const server = express()
 
-const whitelist = ["http://localhost:3000"]
+const whitelist = ["http://localhost:3004"]
 const corsOptions = {
     origin: (origin, callback) => {
         if (whitelist.indexOf(origin) !== -1 || !origin) {
@@ -44,6 +46,8 @@ server.use("/courses", courseRouter)
 server.use("/lecturers", lecturerRouter)
 server.use("/register", registerRouter)
 server.use("/exams", examRouter)
+server.use("/admin", adminRouter)
+server.use("/users", userRouter)
 
 // ERROR HANDLERS MIDDLEWARES
 
