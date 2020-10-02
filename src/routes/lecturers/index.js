@@ -3,12 +3,10 @@ const db = require("../../db")
 const multer = require("multer")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
-const { authenticateLecturer, refreshTokenLecturer } = require("./auth_Lecturers")
-const { authorizeLecturer } = require("../middlewares/authorize")
+const { authorize, onlyForAdmin } = require("../middlewares/authorize")
 
 const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
 var MulterAzureStorage = require('multer-azure-storage')
-const auth_lecturers = require("./auth_Lecturers")
 
 const credentials = new StorageSharedKeyCredential("srmscdn", process.env.STORAGE_KEY)
 const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
@@ -16,7 +14,7 @@ const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/
 const lecturerRouter = express.Router();
 
 
-lecturerRouter.get("/", authorizeLecturer, async (req, res, next) => {
+lecturerRouter.get("/", authorize, async (req, res, next) => {
     try {
         const sort = req.query.sort
         const order = req.query.order
@@ -58,25 +56,32 @@ lecturerRouter.get("/", authorizeLecturer, async (req, res, next) => {
     }
 })
 
-lecturerRouter.get("/me", authorizeLecturer, async (req, res, next) => {
+lecturerRouter.get("/me", authorize, async (req, res, next) => {
     try {
-        res.send(req.user)
+        const getMe = await db.query('SELECT * FROM "lecturers" WHERE email= $1',
+            [req.user.email])
+        res.send(getMe.rows[0])
     } catch (error) {
         next("While reading users list a problem occurred!")
     }
 })
 
-lecturerRouter.post("/register", async (req, res, next) => {
+lecturerRouter.post("/register", authorize, onlyForAdmin, async (req, res, next) => {
     try {
         const hashedPassword = await bcrypt.hash(req.body.password, 10)
 
-        const response = await db.query(`INSERT INTO "lecturers" (firstname, lastname, email, departmentid,password) 
-    Values ($1, $2, $3, $4,$5)
+        const newLecturer = await db.query(`INSERT INTO "lecturers" (firstname, lastname, email, departmentid) 
+    Values ($1, $2, $3, $4)
     RETURNING *`,
-            [req.body.firstname, req.body.lastname, req.body.email, req.body.departmentid, hashedPassword])
+            [req.body.firstname, req.body.lastname, req.body.email, req.body.departmentid])
 
-        console.log(response)
-        res.send(response.rows[0])
+        const newUser = await db.query(`INSERT INTO "users" (email, password, title) 
+            Values ($1, $2, $3)
+            RETURNING *`,
+            [req.body.email, hashedPassword, req.body.title])
+
+        console.log(newLecturer)
+        res.send(newLecturer.rows[0])
     } catch (error) {
         next(error)
     }
@@ -94,7 +99,7 @@ const multerOptions = multer({
     })
 })
 
-lecturerRouter.post("/upload/me", authorizeLecturer, multerOptions.single("imageFile"), async (req, res, next) => {
+lecturerRouter.post("/upload/me", authorize, multerOptions.single("imageFile"), async (req, res, next) => {
     try {
         let params = []
         let query = `UPDATE "lecturers" SET image = '${req.file.url}'`
@@ -115,7 +120,7 @@ lecturerRouter.post("/upload/me", authorizeLecturer, multerOptions.single("image
     }
 })
 
-lecturerRouter.put("/me", authorizeLecturer, async (req, res, next) => {
+lecturerRouter.put("/me", authorize, async (req, res, next) => {
     try {
         let params = []
         let query = 'UPDATE "lecturers" SET '
@@ -144,7 +149,7 @@ lecturerRouter.put("/me", authorizeLecturer, async (req, res, next) => {
     }
 })
 
-lecturerRouter.delete("/me", authorizeLecturer, async (req, res, next) => {
+lecturerRouter.delete("/me", authorize, async (req, res, next) => {
     try {
         const response = await db.query(`DELETE FROM "lecturers" WHERE _id = $1`, [req.user._id])
 
@@ -158,83 +163,5 @@ lecturerRouter.delete("/me", authorizeLecturer, async (req, res, next) => {
     }
 })
 
-lecturerRouter.post("/login", async (req, res, next) => {
-    try {
-        const { email, password } = req.body
-
-        const getUser = await db.query('SELECT * FROM "lecturers" WHERE email= $1',
-            [email])
-
-        const isMatch = await bcrypt.compare(password, getUser.rows[0].password)
-        if (!isMatch) {
-            const err = new Error("Unable to login")
-            err.httpStatusCode = 401
-            throw err
-        }
-
-        const user = getUser.rows[0]
-
-        const tokens = await authenticateLecturer(user)
-        res.cookie("accessToken", tokens.accessToken, {
-            httpOnly: true,
-        })
-        res.cookie("refreshToken", tokens.refreshToken, {
-            httpOnly: true,
-            path: "/lecturers/refreshToken",
-        })
-        // res.send(tokens)
-
-    } catch (error) {
-        next(error)
-    }
-})
-
-lecturerRouter.post("/logout", authorizeLecturer, async (req, res, next) => {
-    try {
-        let params = []
-        let query = `UPDATE "lecturers" SET token = null`
-
-        params.push(req.user._id)
-        query += " WHERE _id = $" + (params.length) + " RETURNING *"
-        console.log(query)
-
-        const result = await db.query(query, params)
-
-        if (result.rowCount === 0)
-            return res.status(404).send("Not Found")
-
-        res.send("logout successful!")
-
-    } catch (err) {
-        next(err)
-    }
-})
-
-lecturerRouter.post("/refreshToken", async (req, res, next) => {
-    const oldRefreshToken = req.cookies.refreshToken
-    if (!oldRefreshToken) {
-        const err = new Error("Forbidden")
-        err.httpStatusCode = 403
-        next(err)
-    } else {
-        try {
-            const newTokens = await refreshTokenLecturer(oldRefreshToken)
-            res.cookie("accessToken", newTokens.accessToken, {
-                httpOnly: true,
-            })
-            res.cookie("refreshToken", newTokens.refreshToken, {
-                httpOnly: true,
-                path: "/students/refreshToken",
-            })
-            // res.send(newTokens)
-            res.send("newTokens sent!")
-        } catch (error) {
-            console.log(error)
-            const err = new Error(error)
-            err.httpStatusCode = 403
-            next(err)
-        }
-    }
-})
 
 module.exports = lecturerRouter
