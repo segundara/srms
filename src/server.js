@@ -40,10 +40,10 @@ server.use(express.json())
 server.use(cookieParser())
 
 
-server.use("/students", studentRouter)
+server.use("/student", studentRouter)
 server.use("/departments", departmentRouter)
 server.use("/courses", courseRouter)
-server.use("/lecturers", lecturerRouter)
+server.use("/tutor", lecturerRouter)
 server.use("/register", registerRouter)
 server.use("/exams", examRouter)
 server.use("/admin", adminRouter)
