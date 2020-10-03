@@ -203,6 +203,9 @@ userRouter.post("/logout", authorize, async (req, res, next) => {
         if (result.rowCount === 0)
             return res.status(404).send("Not Found")
 
+        res.clearCookie("accessToken");
+        res.clearCookie("refreshToken");
+
         res.send("logout successful!")
 
     } catch (err) {
