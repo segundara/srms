@@ -12,22 +12,26 @@ registerRouter.post("/", authorize, async (req, res) => {
         [req.body.courseid, req.body.studentid])
 
     if (checkRegister.rowCount > 0)
-        return res.send("You have already registered for this course!")
+        return res.status(400).send("You have already registered for this course!")
 
     const newCourseReg = await db.query("INSERT INTO course_register (studentid, courseid, reg_date) VALUES ($1, $2, $3) RETURNING _id",
         [req.body.studentid, req.body.courseid, req.body.reg_date])
 
     const record = await db.query(`SELECT courses._id, courses.name, courses.description, courses.semester, course_register.reg_date
         FROM course_register JOIN "courses" ON course_register.courseid = "courses"._id
-        WHERE course_register._id = $1
+        WHERE course_register.studentid = $1
         GROUP BY courses._id, courses.name, courses.description, courses.semester, course_register.reg_date
-        `, [newCourseReg.rows[0]._id])
+        `, [req.body.studentid])
 
     const studentInfo = await db.query(`SELECT students._id, students.firstname, students.lastname, students.email
         FROM course_register JOIN "students" ON course_register.studentid = "students"._id
         WHERE studentid = $1
         GROUP BY students._id, students.firstname, students.lastname, students.email
         `, [req.body.studentid])
+
+    // const registerUpdate = await db.query(`SELECT * FROM course_register 
+    //                                   WHERE studentid = $1`,
+    //     [req.body.studentid])
 
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     const msg = {
@@ -37,9 +41,9 @@ registerRouter.post("/", authorize, async (req, res) => {
         text: `Hello ${studentInfo.rows[0].firstname} ${studentInfo.rows[0].lastname}, 
                 \nYour registration for ${record.rows[0].name} which is scheduled for ${record.rows[0].semester} semester has been saved.`
     };
-    await sgMail.send(msg);
+    // await sgMail.send(msg);
 
-    res.send(newCourseReg.rows[0])
+    res.send(record.rows)
 })
 
 // endpoint for viewing registered course list, needed by student
