@@ -98,13 +98,13 @@ const multerOptions = multer({
     })
 })
 
-studentRouter.post("/upload/me", authorize, multerOptions.single("imageFile"), async (req, res, next) => {
+studentRouter.post("/upload/me", authorize, multerOptions.single("file"), async (req, res, next) => {
     try {
         let params = []
         let query = `UPDATE "students" SET image = '${req.file.url}'`
 
-        params.push(req.user._id)
-        query += " WHERE _id = $" + (params.length) + " RETURNING *"
+        params.push(req.user.email)
+        query += " WHERE email = $" + (params.length) + " RETURNING *"
         console.log(query)
 
         const result = await db.query(query, params)
@@ -131,15 +131,17 @@ studentRouter.put("/me", authorize, async (req, res, next) => {
             params.push(req.body[bodyParamName]) //save the current body parameter into the params array
         }
 
-        params.push(req.user._id) //push the id into the array
-        query += " WHERE _id = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
+        params.push(req.user.email) //push the id into the array
+        query += " WHERE email = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
         console.log(query)
 
         const result = await db.query(query, params) //querying the DB for updating the row
 
-
         if (result.rowCount === 0) //if no element match the specified id => 404
             return res.status(404).send("Not Found")
+
+        const updateUserInfo = await db.query('UPDATE "users" SET email = $1 WHERE email = $2',
+            [req.body.email, req.user.email])
 
         res.send(result.rows[0]) //else, return the updated version
     }
@@ -150,7 +152,7 @@ studentRouter.put("/me", authorize, async (req, res, next) => {
 
 studentRouter.delete("/me", authorize, async (req, res, next) => {
     try {
-        const response = await db.query(`DELETE FROM "students" WHERE _id = $1`, [req.user._id])
+        const response = await db.query(`DELETE FROM "students" WHERE email = $1`, [req.user.email])
 
         if (response.rowCount === 0)
             return res.status(404).send("Not Found")
