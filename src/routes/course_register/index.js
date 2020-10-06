@@ -17,6 +17,9 @@ registerRouter.post("/", authorize, async (req, res) => {
     const newCourseReg = await db.query("INSERT INTO course_register (studentid, courseid, reg_date) VALUES ($1, $2, $3) RETURNING _id",
         [req.body.studentid, req.body.courseid, req.body.reg_date])
 
+    const newExamReg = await db.query("INSERT INTO exams (studentid, courseid, examdate) VALUES ($1, $2, $3) RETURNING _id",
+        [req.body.studentid, req.body.courseid, req.body.examdate])
+
     const record = await db.query(`SELECT courses._id, courses.name, courses.description, courses.semester, course_register.reg_date
         FROM course_register JOIN "courses" ON course_register.courseid = "courses"._id
         WHERE course_register.studentid = $1
@@ -43,7 +46,7 @@ registerRouter.post("/", authorize, async (req, res) => {
     };
     // await sgMail.send(msg);
 
-    res.send(record.rows)
+    res.send(record.rows, newExamReg.rows[0])
 })
 
 // endpoint for viewing registered course list, needed by student
