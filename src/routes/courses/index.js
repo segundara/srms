@@ -1,6 +1,6 @@
 const express = require("express")
 const db = require("../../db")
-const { authorize, onlyForAdmin } = require("../middlewares/authorize")
+const { authorize, onlyForAdmin, forAllButStudent } = require("../middlewares/authorize")
 
 const courseRouter = express.Router();
 
@@ -43,14 +43,14 @@ courseRouter.get("/", authorize, async (req, res) => {
     res.send({ count: response.rows.length, data: response.rows })
 })
 
-courseRouter.get("/:id", authorize, async (req, res) => {
-    const response = await db.query('SELECT * FROM "courses" WHERE _id= $1',
-        [req.params.id])
+courseRouter.get("/:lecturerid", authorize, forAllButStudent, async (req, res) => {
+    const response = await db.query('SELECT * FROM "courses" WHERE lecturerid= $1',
+        [req.params.lecturerid])
 
     if (response.rowCount === 0)
         return res.status(404).send("Not found")
 
-    res.send(response.rows[0])
+    res.send(response.rows)
 })
 
 //Admin to add course info
