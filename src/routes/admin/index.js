@@ -99,13 +99,13 @@ const multerOptions = multer({
     })
 })
 
-adminRouter.post("/upload/me", authorize, multerOptions.single("imageFile"), async (req, res, next) => {
+adminRouter.post("/upload/me", authorize, multerOptions.single("file"), async (req, res, next) => {
     try {
         let params = []
         let query = `UPDATE "admin" SET image = '${req.file.url}'`
 
-        params.push(req.user._id)
-        query += " WHERE _id = $" + (params.length) + " RETURNING *"
+        params.push(req.user.email)
+        query += " WHERE email = $" + (params.length) + " RETURNING *"
         console.log(query)
 
         const result = await db.query(query, params)
@@ -132,8 +132,8 @@ adminRouter.put("/me", authorize, async (req, res, next) => {
             params.push(req.body[bodyParamName]) //save the current body parameter into the params array
         }
 
-        params.push(req.user._id) //push the id into the array
-        query += " WHERE _id = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
+        params.push(req.user.email) //push the id into the array
+        query += " WHERE email = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
         console.log(query)
 
         const result = await db.query(query, params) //querying the DB for updating the row
@@ -151,7 +151,7 @@ adminRouter.put("/me", authorize, async (req, res, next) => {
 
 adminRouter.delete("/me", authorize, async (req, res, next) => {
     try {
-        const response = await db.query(`DELETE FROM "admin" WHERE _id = $1`, [req.user._id])
+        const response = await db.query(`DELETE FROM "admin" WHERE email = $1`, [req.user.email])
 
         if (response.rowCount === 0)
             return res.status(404).send("Not Found")
