@@ -125,6 +125,17 @@ examRouter.get('/:studentid/pdf', authorize, async (req, res) => {
     }
 })
 
+// endpoint to get students list in a particular exam
+examRouter.get("/student_list/:courseid", authorize, forAllButStudent, async (req, res) => {
+    const response = await db.query(`SELECT students._id AS studentid, students.firstname, students.lastname, students.email, exams.examdate, exams.grade, exams._id
+                                     FROM exams JOIN "students" ON exams.studentid = "students"._id
+                                     WHERE courseid = $1
+                                     GROUP BY students._id, students.firstname, students.lastname, students.email, exams.examdate, exams.grade, exams._id
+                                     `, [req.params.courseid])
+    console.log(response.rows)
+    res.send({ count: response.rows.length, data: response.rows })
+})
+
 // endpoint to upload exam grades
 examRouter.put("/:studentid/:id", authorize, forAllButStudent, async (req, res) => {
     try {
@@ -138,9 +149,9 @@ examRouter.put("/:studentid/:id", authorize, forAllButStudent, async (req, res) 
             params.push(req.body[bodyParamName]) //save the current body parameter into the params array
         }
 
-        params.push(req.params.id) //push the id into the array
-        params.push(req.params.studentid)
-        query += " WHERE _id = $" + (params.length - 1) + " AND studentid = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
+        params.push(req.params.studentid) //push the id into the array
+        params.push(req.params.id)
+        query += " WHERE studentid = $" + (params.length - 1) + " AND _id = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
         console.log(query)
 
         const result = await db.query(query, params) //querying the DB for updating the row
