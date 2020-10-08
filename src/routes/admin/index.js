@@ -2,14 +2,13 @@ const express = require("express")
 const db = require("../../db")
 const multer = require("multer")
 const bcrypt = require("bcrypt")
-const jwt = require("jsonwebtoken")
 const { authorize, onlyForAdmin } = require("../middlewares/authorize")
 
 const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
 var MulterAzureStorage = require('multer-azure-storage')
 
 const credentials = new StorageSharedKeyCredential("srmscdn", process.env.STORAGE_KEY)
-const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
+// const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
 
 const adminRouter = express.Router();
 
