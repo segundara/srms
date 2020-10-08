@@ -3,7 +3,6 @@ const db = require("../../db")
 
 const authenticate = async (user) => {
     try {
-        // generate tokens
         const newAccessToken = await generateJWT({ _id: user._id })
         const newRefreshToken = await generateRefreshJWT({ _id: user._id })
 
@@ -15,8 +14,6 @@ const authenticate = async (user) => {
         console.log(query)
 
         const result = await db.query(query, params)
-        // console.log(newAccessToken)
-        // console.log(newRefreshToken)
 
         return { accessToken: newAccessToken, refreshToken: newRefreshToken }
     } catch (error) {
@@ -76,7 +73,6 @@ const refreshToken = async (oldRefreshToken) => {
         throw new Error(`Refresh token is wrong`)
     }
 
-    // generate tokens
     const newAccessToken = await generateJWT({ _id: user.rows[0]._id })
     const newRefreshToken = await generateRefreshJWT({ _id: user.rows[0]._id })
 
