@@ -2,6 +2,7 @@ const express = require("express")
 const db = require("../../db")
 const PdfPrinter = require('pdfmake')
 const { authorize, forAllButStudent, onlyForAdmin } = require("../middlewares/authorize")
+const fs = require('fs-extra')
 
 const examRouter = express.Router()
 
@@ -35,7 +36,7 @@ examRouter.get('/:studentid/pdf', authorize, async (req, res) => {
 
         const record = await db.query(`SELECT courses._id, courses.name, courses.description, courses.semester, exams.examdate, exams.grade
                                          FROM exams JOIN "courses" ON exams.courseid = "courses"._id
-                                         WHERE studentid = $1
+                                         WHERE studentid = $1 AND exams.grade IS NOT NULL
                                          GROUP BY courses._id, courses.name, courses.description, courses.semester, exams.examdate, exams.grade
                                          `, [req.params.studentid])
 
@@ -90,32 +91,37 @@ examRouter.get('/:studentid/pdf', authorize, async (req, res) => {
                 return {
                     table: {
                         headerRows: 1,
+                        widths: [100, 100, 100, 50],
                         body: buildTableBody(data, columns)
                     },
+                    alignment: 'center',
                     layout: {
                         fillColor: function (rowIndex, node, columnIndex) {
-                            return (rowIndex === 0) ? '#CCCCCC' : null;
+                            return (rowIndex === 0) ? '#eeeeee' : null;
                         }
                     }
                 };
             }
 
             var docDefinition = {
-                pageMargins: [150, 50, 150, 50],
+                pageMargins: [100, 50, 100, 50],
+                watermark: { text: 'academic transcript', color: 'blue', opacity: 0.1, bold: true, italics: false },
                 content: [
                     {
                         text: `${studentInfo.rows[0].firstname.toUpperCase()} ${studentInfo.rows[0].lastname.toUpperCase()}`,
-                        bold: true, fontsize: 25, alignment: 'center', color: 'brown'
+                        bold: true, fontSize: 30, alignment: 'center', color: 'navy'
                     },
                     {
-                        text: `Transcript of Records`, normal: true, alignment: 'center', color: 'brown'
+                        text: `Transcript of Records`, normal: true, alignment: 'center', color: 'navy'
                     }, `\n`,
                     table(generateRows(), ['Course Name', 'Semester', 'Date of Exam', 'Grade'])
                 ]
             }
+
             var pdfDoc = printer.createPdfKitDocument(docDefinition);
-            res.setHeader("Content-Disposition", `attachment; filename=${studentInfo.rows[0].firstname}.pdf`)
-            res.contentType("application/pdf")
+            // res.setHeader("Content-Disposition", `attachment; filename=${studentInfo.rows[0].firstname}.pdf`)
+
+            res.setHeader('content-type', 'application/pdf');
             pdfDoc.pipe(res)
             pdfDoc.end()
         }
