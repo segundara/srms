@@ -1,6 +1,5 @@
 const express = require("express")
 const db = require("../../db")
-const sgMail = require("@sendgrid/mail")
 const { authorize, forAllButStudent, onlyForAdmin } = require("../middlewares/authorize")
 
 const registerRouter = express.Router()
@@ -25,26 +24,6 @@ registerRouter.post("/", authorize, async (req, res) => {
         WHERE course_register.studentid = $1
         GROUP BY courses._id, courses.name, courses.description, courses.semester, course_register.reg_date
         `, [req.body.studentid])
-
-    // const studentInfo = await db.query(`SELECT students._id, students.firstname, students.lastname, students.email
-    //     FROM course_register JOIN "students" ON course_register.studentid = "students"._id
-    //     WHERE studentid = $1
-    //     GROUP BY students._id, students.firstname, students.lastname, students.email
-    //     `, [req.body.studentid])
-
-    // const registerUpdate = await db.query(`SELECT * FROM course_register 
-    //                                   WHERE studentid = $1`,
-    //     [req.body.studentid])
-
-    // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    // const msg = {
-    //     to: studentInfo.rows[0].email,
-    //     from: 'srms@school.com',
-    //     subject: 'Course Registration Successful',
-    //     text: `Hello ${studentInfo.rows[0].firstname} ${studentInfo.rows[0].lastname}, 
-    //             \nYour registration for ${record.rows[0].name} which is scheduled for ${record.rows[0].semester} semester has been saved.`
-    // };
-    // await sgMail.send(msg);
 
     res.send(record.rows)
 })
