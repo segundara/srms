@@ -1,16 +1,8 @@
 const express = require("express")
 const db = require("../../db")
-const multer = require("multer")
 const bcrypt = require("bcrypt")
-const jwt = require("jsonwebtoken")
 const { authenticate, refreshToken } = require("./auth_users")
 const { authorize } = require("../middlewares/authorize")
-
-// const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
-// var MulterAzureStorage = require('multer-azure-storage')
-
-// const credentials = new StorageSharedKeyCredential("srmscdn", process.env.STORAGE_KEY)
-// const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
 
 const userRouter = express.Router();
 
@@ -56,106 +48,6 @@ userRouter.get("/", authorize, async (req, res, next) => {
         next(error)
     }
 })
-
-// userRouter.get("/me", authorizeLecturer, async (req, res, next) => {
-//     try {
-//         res.send(req.user)
-//     } catch (error) {
-//         next("While reading users list a problem occurred!")
-//     }
-// })
-
-// userRouter.post("/register", async (req, res, next) => {
-//     try {
-//         const hashedPassword = await bcrypt.hash(req.body.password, 10)
-
-//         const response = await db.query(`INSERT INTO "lecturers" (firstname, lastname, email, departmentid,password) 
-//     Values ($1, $2, $3, $4,$5)
-//     RETURNING *`,
-//             [req.body.firstname, req.body.lastname, req.body.email, req.body.departmentid, hashedPassword])
-
-//         console.log(response)
-//         res.send(response.rows[0])
-//     } catch (error) {
-//         next(error)
-//     }
-// })
-
-// EXTRA) Using multer middleware to upload image
-// const getFileName = (file) => file.originalname
-
-// const multerOptions = multer({
-//     storage: new MulterAzureStorage({
-//         azureStorageConnectionString: process.env.STORAGE_CS,
-//         containerName: 'images',
-//         containerSecurity: 'container',
-//         fileName: getFileName
-//     })
-// })
-
-// userRouter.post("/upload/me", authorizeLecturer, multerOptions.single("imageFile"), async (req, res, next) => {
-//     try {
-//         let params = []
-//         let query = `UPDATE "lecturers" SET image = '${req.file.url}'`
-
-//         params.push(req.user._id)
-//         query += " WHERE _id = $" + (params.length) + " RETURNING *"
-//         console.log(query)
-
-//         const result = await db.query(query, params)
-
-//         if (result.rowCount === 0)
-//             return res.status(404).send("Not Found")
-
-//         res.send(result.rows[0])
-//     }
-//     catch (error) {
-//         next(error)
-//     }
-// })
-
-// userRouter.put("/me", authorizeLecturer, async (req, res, next) => {
-//     try {
-//         let params = []
-//         let query = 'UPDATE "lecturers" SET '
-//         for (bodyParamName in req.body) {
-//             query += // for each element in the body I'll add something like parameterName = $Position
-//                 (params.length > 0 ? ", " : '') + //I'll add a coma before the parameterName for every parameter but the first
-//                 bodyParamName + " = $" + (params.length + 1) // += Category = $1 
-
-//             params.push(req.body[bodyParamName]) //save the current body parameter into the params array
-//         }
-
-//         params.push(req.user._id) //push the id into the array
-//         query += " WHERE _id = $" + (params.length) + " RETURNING *" //adding filtering for id + returning
-//         console.log(query)
-
-//         const result = await db.query(query, params) //querying the DB for updating the row
-
-
-//         if (result.rowCount === 0) //if no element match the specified id => 404
-//             return res.status(404).send("Not Found")
-
-//         res.send(result.rows[0]) //else, return the updated version
-//     }
-//     catch (error) {
-//         next(error)
-//     }
-// })
-
-// userRouter.delete("/me", authorizeLecturer, async (req, res, next) => {
-//     try {
-//         const response = await db.query(`DELETE FROM "lecturers" WHERE _id = $1`, [req.user._id])
-
-//         if (response.rowCount === 0)
-//             return res.status(404).send("Not Found")
-
-//         res.send("Record deleted!")
-
-//     } catch (error) {
-//         next(error)
-//     }
-// })
 
 userRouter.post("/login", async (req, res, next) => {
     try {
@@ -229,7 +121,6 @@ userRouter.post("/refreshToken", async (req, res, next) => {
                 httpOnly: true,
                 path: "/users/refreshToken",
             })
-            // res.send(newTokens)
             res.send("newTokens sent!")
         } catch (error) {
             console.log(error)
