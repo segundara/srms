@@ -2,14 +2,14 @@ const express = require("express")
 const db = require("../../db")
 const multer = require("multer")
 const bcrypt = require("bcrypt")
-const jwt = require("jsonwebtoken")
 const { authorize, onlyForAdmin } = require("../middlewares/authorize")
+const sgMail = require("@sendgrid/mail")
 
 const { BlobServiceClient, StorageSharedKeyCredential, BlobLeaseClient } = require("@azure/storage-blob")
 var MulterAzureStorage = require('multer-azure-storage')
 
 const credentials = new StorageSharedKeyCredential("srmscdn", process.env.STORAGE_KEY)
-const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
+// const blobClient = new BlobServiceClient("https://srmscdn.blob.core.windows.net/", credentials)
 
 const lecturerRouter = express.Router();
 
@@ -79,6 +79,21 @@ lecturerRouter.post("/register", authorize, onlyForAdmin, async (req, res, next)
             Values ($1, $2, $3)
             RETURNING *`,
             [req.body.email, hashedPassword, req.body.title])
+
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+        const msg = {
+            to: newUser.rows[0].email,
+            from: 'srms@school.com',
+            subject: 'School Account Created',
+            text: `Hello ${newLecturer.rows[0].firstname} ${newLecturer.rows[0].lastname}, 
+                    \nWe are happy to inform you that a page has been created for you on the school portal.
+                    \nYou can access your account page with the following credentials:
+                    \nEmail => ${newUser.rows[0].email}
+                    \nPassword => ${req.body.password}.
+                    \n\nKind regards
+                    \nSchool Management.`
+        };
+        await sgMail.send(msg);
 
         console.log(newLecturer)
         res.send(newLecturer.rows[0])
