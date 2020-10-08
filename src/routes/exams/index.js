@@ -2,7 +2,6 @@ const express = require("express")
 const db = require("../../db")
 const PdfPrinter = require('pdfmake')
 const { authorize, forAllButStudent, onlyForAdmin } = require("../middlewares/authorize")
-const fs = require('fs-extra')
 
 const examRouter = express.Router()
 
@@ -95,6 +94,7 @@ examRouter.get('/:studentid/pdf', authorize, async (req, res) => {
                         body: buildTableBody(data, columns)
                     },
                     alignment: 'center',
+                    color: 'black',
                     layout: {
                         fillColor: function (rowIndex, node, columnIndex) {
                             return (rowIndex === 0) ? '#eeeeee' : null;
