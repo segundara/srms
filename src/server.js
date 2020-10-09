@@ -23,7 +23,7 @@ const {
 
 const server = express()
 
-const whitelist = ["http://localhost:3004"]
+const whitelist = ["http://localhost:3001"]
 const corsOptions = {
     origin: (origin, callback) => {
         if (whitelist.indexOf(origin) !== -1 || !origin) {
