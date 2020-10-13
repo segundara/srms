@@ -74,7 +74,8 @@ userRouter.post("/login", async (req, res, next) => {
             path: "/users/refreshToken",
         })
         // res.send(tokens)
-        res.send({ title: user.title, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken })
+        // res.send({ title: user.title, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken })
+        res.send(user.title)
 
     } catch (error) {
         next(error)
@@ -95,8 +96,8 @@ userRouter.post("/logout", authorize, async (req, res, next) => {
         if (result.rowCount === 0)
             return res.status(404).send("Not Found")
 
-        // res.clearCookie("accessToken");
-        // res.clearCookie("refreshToken");
+        res.clearCookie("accessToken");
+        res.clearCookie("refreshToken");
 
         res.send("logout successful!")
 
