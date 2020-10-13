@@ -74,7 +74,7 @@ userRouter.post("/login", async (req, res, next) => {
             path: "/users/refreshToken",
         })
         // res.send(tokens)
-        res.send(user.title)
+        res.send({ title: user.title, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken })
 
     } catch (error) {
         next(error)
