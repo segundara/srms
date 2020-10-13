@@ -3,7 +3,9 @@ const db = require("../../db")
 
 const authorize = async (req, res, next) => {
   try {
-    const token = req.cookies.accessToken
+    // const token = req.cookies.accessToken
+    const token = req.header("Authorization").replace("Bearer ", "")
+    console.log(token)
     const decoded = await verifyJWT(token)
     const user = await db.query('SELECT * FROM "users" WHERE _id= $1',
       [decoded._id])
