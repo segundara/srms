@@ -33,7 +33,7 @@ const corsOptions = {
         }
     },
     credentials: true,
-    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
 }
 
 server.use(cors(corsOptions))
